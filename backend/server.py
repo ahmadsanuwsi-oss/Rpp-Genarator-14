@@ -247,9 +247,18 @@ async def list_managed_users(user: dict = Depends(get_current_user)):
     else:
         raise HTTPException(status_code=403, detail="Akses ditolak")
     users = await db.users.find(q, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(2000)
-    # attach doc counts
+    # attach doc counts using a single aggregation query (avoids N+1)
+    user_ids = [u["id"] for u in users]
+    counts = {}
+    if user_ids:
+        pipeline = [
+            {"$match": {"owner_id": {"$in": user_ids}}},
+            {"$group": {"_id": "$owner_id", "count": {"$sum": 1}}},
+        ]
+        async for r in db.documents.aggregate(pipeline):
+            counts[r["_id"]] = r["count"]
     for u in users:
-        u["doc_count"] = await db.documents.count_documents({"owner_id": u["id"]})
+        u["doc_count"] = counts.get(u["id"], 0)
     return users
 
 

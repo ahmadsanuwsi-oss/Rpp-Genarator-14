@@ -101,3 +101,40 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Import project RPP Studio dari GitHub, setup dependencies, dan cek kesiapan deployment (health check)."
+
+backend:
+  - task: "Admin user listing endpoint (GET /api/admin/users) - N+1 query optimization"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Optimized N+1 query flagged by deployment health check. Replaced per-user count_documents loop with a single MongoDB aggregation ($match + $group on documents.owner_id) that batch-fetches doc_count for all users. Needs verification that superadmin and admin both get correct user lists with accurate doc_count values."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED - N+1 optimization working correctly. Tests confirmed: (1) Superadmin can access GET /api/admin/users and receives 200 with list of admin users, (2) Each user has numeric doc_count field, (3) doc_count accuracy verified - created test admin users with 1 and 3 documents respectively, aggregation returned correct counts matching actual document ownership, (4) Teacher role properly denied with 403, (5) No server errors (500). MongoDB aggregation pipeline ($match owner_id $in user_ids, $group count) successfully replaced N+1 per-user queries. Backend logs show all requests handled correctly."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.2"
+  test_sequence: 2
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Admin user listing endpoint (GET /api/admin/users) - N+1 query optimization"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Please verify GET /api/admin/users after N+1 optimization. Auth: superadmin (mifjan@madrasahebat.com / B1smill@h) should see list of admin users; a teacher/admin login should behave per role. Confirm each returned user includes a numeric doc_count that matches the number of documents they own. Credentials also in /app/memory/test_credentials.md. Only test this endpoint (recent change); a broad smoke check of auth/login is fine but not required."
+    - agent: "testing"
+      message: "✅ Testing complete - N+1 optimization verified successfully. Created comprehensive backend_test.py that tests: (1) superadmin login and GET /api/admin/users access, (2) doc_count field presence and numeric type validation, (3) doc_count accuracy by creating test admin users with known document counts (admin1: 3 docs, admin2: 1 doc) and verifying aggregation results match actual ownership, (4) teacher role access control (403 forbidden), (5) no server errors. All tests passed. Backend logs confirm correct behavior. The MongoDB aggregation optimization is working as intended - single query replaces N per-user queries."
