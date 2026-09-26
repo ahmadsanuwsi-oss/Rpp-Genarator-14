@@ -36,7 +36,7 @@ export default function Register() {
           <div className="w-11 h-11 rounded-xl bg-amber-500 flex items-center justify-center">
             <GraduationCap className="w-6 h-6" />
           </div>
-          <span className="text-xl font-extrabold">RPP Studio</span>
+          <span className="text-xl font-extrabold">Generator Pembelajaran</span>
         </div>
         <div className="relative z-10">
           <h1 className="text-4xl font-extrabold leading-tight tracking-tight">

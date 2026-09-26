@@ -45,7 +45,7 @@ export default function Layout({ children }) {
           <GraduationCap className="w-5 h-5 text-white" />
         </div>
         <div className="leading-tight">
-          <div className="text-white font-extrabold text-base">RPP Studio</div>
+          <div className="text-white font-extrabold text-base">Generator Pembelajaran</div>
           <div className="text-emerald-200/70 text-[11px]">Perangkat Ajar Guru</div>
         </div>
       </div>
@@ -131,7 +131,7 @@ export default function Layout({ children }) {
         <header className="lg:hidden sticky top-0 z-30 bg-[#0B261E] text-white flex items-center justify-between px-4 py-3 no-print">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-amber-400" />
-            <span className="font-bold">RPP Studio</span>
+            <span className="font-bold">Generator Pembelajaran</span>
           </div>
           <button data-testid="btn-menu" onClick={() => setOpen(true)}>
             <Menu className="w-6 h-6" />

@@ -40,6 +40,7 @@ export default function RppEditor() {
         alamatSekolah: user?.alamatSekolah || "",
         namaKepalaSekolah: user?.namaKepalaSekolah || "",
         nipKepalaSekolah: user?.nipKepalaSekolah || "",
+        logoMadrasah: user?.logoMadrasah || "",
       }));
     }
   }, [id]);

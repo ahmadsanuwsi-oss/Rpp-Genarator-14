@@ -51,14 +51,15 @@ export const RPP_IDENTITAS = [
 export const RPP_SECTIONS = [
   { key: "identifikasiPesertaDidik", label: "Identifikasi Peserta Didik" },
   { key: "capaianPembelajaran", label: "Capaian Pembelajaran (CP)", option: "capaianPembelajaran" },
-  { key: "dimensiProfilLulusan", label: "Dimensi Profil Lulusan" },
-  { key: "topikPancaCinta", label: "Topik Panca Cinta" },
+  { key: "dimensiProfilLulusan", label: "Dimensi Profil Lulusan", checklist: "dimensiProfilLulusan" },
+  { key: "topikPancaCinta", label: "Topik Panca Cinta", checklist: "topikPancaCinta" },
   { key: "materiIntegrasiKBC", label: "Materi Integrasi Kurikulum Berbasis Cinta (KBC)" },
   { key: "pemanfaatanDigital", label: "Pemanfaatan Digital" },
-  { key: "lintasDisiplin", label: "Lintas Disiplin Ilmu" },
+  { key: "lintasDisiplin", label: "Lintas Disiplin Ilmu", checklist: "lintasDisiplin" },
   { key: "tujuanPembelajaran", label: "Tujuan Pembelajaran", option: "alurTujuanPembelajaran" },
-  { key: "praktikPedagogik", label: "Praktik Pedagogik / Model Pembelajaran" },
-  { key: "kemitraan", label: "Kemitraan Pembelajaran" },
+  { key: "praktikPedagogik", label: "Model Pembelajaran", checklist: "praktikPedagogik" },
+  { key: "metodePembelajaran", label: "Metode Pembelajaran", checklist: "metodePembelajaran" },
+  { key: "kemitraan", label: "Kemitraan Pembelajaran", checklist: "kemitraan" },
   { key: "kegiatanAwal", label: "Langkah Pembelajaran — Kegiatan Awal" },
   { key: "kegiatanInti", label: "Langkah Pembelajaran — Kegiatan Inti" },
   { key: "penutup", label: "Langkah Pembelajaran — Penutup" },
@@ -70,6 +71,6 @@ export const RPP_SECTIONS = [
 
 export function emptyRppFields() {
   const f = {};
-  [...RPP_IDENTITAS, ...RPP_SECTIONS].forEach((x) => (f[x.key] = ""));
+  [...RPP_IDENTITAS, ...RPP_SECTIONS].forEach((x) => (f[x.key] = x.checklist ? [] : ""));
   return f;
 }

@@ -107,17 +107,23 @@ function KopSekolah({ doc }) {
   const m = doc.meta || {};
   const sekolah = f.namaSekolah || m.namaSekolah || "";
   const alamat = f.alamatSekolah || m.alamatSekolah || "";
+  const logo = f.logoMadrasah || m.logoMadrasah || "";
   const title =
     doc.type === "rpp"
       ? "RENCANA PELAKSANAAN PEMBELAJARAN (RPP)"
       : (TYPE_LABEL[doc.type] || "DOKUMEN").toUpperCase();
   return (
-    <div className="text-center border-b-2 border-black pb-3 mb-4">
-      {sekolah && <div className="text-lg font-bold uppercase">{sekolah}</div>}
-      {alamat && <div className="text-xs mt-0.5">{alamat}</div>}
-      <div className="text-base font-bold uppercase mt-2">{title}</div>
+    <div className="border-b-2 border-black pb-3 mb-4">
+      <div className="flex items-center justify-center gap-3">
+        {logo && <img src={logo} alt="Logo Madrasah" style={{ height: "64px", width: "auto" }} />}
+        <div className="text-center">
+          {sekolah && <div className="text-lg font-bold uppercase">{sekolah}</div>}
+          {alamat && <div className="text-xs mt-0.5">{alamat}</div>}
+        </div>
+      </div>
+      <div className="text-center text-base font-bold uppercase mt-2">{title}</div>
       {doc.type !== "rpp" && (
-        <div className="text-sm mt-1">
+        <div className="text-center text-sm mt-1">
           {[m.mataPelajaran, m.kelas && `Kelas ${m.kelas}`, m.semester, m.tahunAjaran].filter(Boolean).join(" · ")}
         </div>
       )}
@@ -149,8 +155,9 @@ function RppView({ doc }) {
       </table>
 
       {RPP_SECTIONS.map((s, i) => {
-        const val = f[s.key];
-        if (!val || !val.trim()) return null;
+        const raw = f[s.key];
+        const val = Array.isArray(raw) ? raw.filter(Boolean).join(", ") : raw;
+        if (!val || !String(val).trim()) return null;
         return (
           <div key={s.key} style={{ marginBottom: "10px" }}>
             <h3>{String.fromCharCode(65 + (i % 26))}. {s.label}</h3>

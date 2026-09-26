@@ -24,7 +24,7 @@ from datetime import datetime, timezone, timedelta
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType, ImageContent
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from htmldocx import HtmlToDocx
 from bs4 import BeautifulSoup
@@ -107,6 +107,16 @@ class ProfileInput(BaseModel):
     alamatSekolah: Optional[str] = None
     namaKepalaSekolah: Optional[str] = None
     nipKepalaSekolah: Optional[str] = None
+    logoMadrasah: Optional[str] = None
+
+
+class AdminSettingsInput(BaseModel):
+    """Pengaturan madrasah yang diatur super admin untuk tiap admin (mengalir ke guru)."""
+    namaSekolah: Optional[str] = None
+    alamatSekolah: Optional[str] = None
+    namaKepalaSekolah: Optional[str] = None
+    nipKepalaSekolah: Optional[str] = None
+    logoMadrasah: Optional[str] = None
 
 
 class CreateUserInput(BaseModel):
@@ -154,6 +164,7 @@ async def register(data: RegisterInput):
         "alamatSekolah": "",
         "namaKepalaSekolah": "",
         "nipKepalaSekolah": "",
+        "logoMadrasah": "",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user)
@@ -229,8 +240,9 @@ async def create_managed_user(data: CreateUserInput, user: dict = Depends(get_cu
         "jabatan": "Guru" if new_role == "guru" else "Admin",
         "namaSekolah": user.get("namaSekolah", ""),
         "alamatSekolah": user.get("alamatSekolah", ""),
-        "namaKepalaSekolah": "",
-        "nipKepalaSekolah": "",
+        "namaKepalaSekolah": user.get("namaKepalaSekolah", "") if new_role == "guru" else "",
+        "nipKepalaSekolah": user.get("nipKepalaSekolah", "") if new_role == "guru" else "",
+        "logoMadrasah": user.get("logoMadrasah", "") if new_role == "guru" else "",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
@@ -260,6 +272,35 @@ async def list_managed_users(user: dict = Depends(get_current_user)):
     for u in users:
         u["doc_count"] = counts.get(u["id"], 0)
     return users
+
+
+MADRASAH_FIELDS = ["namaSekolah", "alamatSekolah", "namaKepalaSekolah", "nipKepalaSekolah", "logoMadrasah"]
+
+
+@api_router.put("/admin/users/{user_id}")
+async def update_managed_user(user_id: str, data: AdminSettingsInput, user: dict = Depends(get_current_user)):
+    role = user.get("role")
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Pengguna tidak ditemukan")
+    # authorization: superadmin -> admin, admin -> own guru
+    if role == "superadmin" and target.get("role") == "admin":
+        pass
+    elif role == "admin" and target.get("admin_id") == user["id"]:
+        pass
+    else:
+        raise HTTPException(status_code=403, detail="Akses ditolak")
+
+    update = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update:
+        await db.users.update_one({"id": user_id}, {"$set": update})
+        # cascade madrasah settings to all gurus under this admin
+        if target.get("role") == "admin":
+            cascade = {k: v for k, v in update.items() if k in MADRASAH_FIELDS}
+            if cascade:
+                await db.users.update_many({"admin_id": user_id}, {"$set": cascade})
+    fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    return fresh
 
 
 @api_router.delete("/admin/users/{user_id}")
@@ -443,6 +484,17 @@ def _add_kop(document: Document, doc: dict):
     m = doc.get("meta") or {}
     sekolah = f.get("namaSekolah") or m.get("namaSekolah") or ""
     alamat = f.get("alamatSekolah") or m.get("alamatSekolah") or ""
+    logo = f.get("logoMadrasah") or m.get("logoMadrasah") or ""
+    if logo and isinstance(logo, str) and "base64," in logo:
+        try:
+            b64 = logo.split("base64,", 1)[1]
+            img_bytes = base64.b64decode(b64)
+            p = document.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run()
+            run.add_picture(io.BytesIO(img_bytes), height=Cm(2.0))
+        except Exception:
+            logger.exception("logo docx render failed")
     if sekolah:
         p = document.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -478,7 +530,8 @@ RPP_SECTION_LABELS = [
     ("pemanfaatanDigital", "Pemanfaatan Digital"),
     ("lintasDisiplin", "Lintas Disiplin Ilmu"),
     ("tujuanPembelajaran", "Tujuan Pembelajaran"),
-    ("praktikPedagogik", "Praktik Pedagogik / Model Pembelajaran"),
+    ("praktikPedagogik", "Model Pembelajaran"),
+    ("metodePembelajaran", "Metode Pembelajaran"),
     ("kemitraan", "Kemitraan Pembelajaran"),
     ("kegiatanAwal", "Langkah Pembelajaran - Kegiatan Awal"),
     ("kegiatanInti", "Langkah Pembelajaran - Kegiatan Inti"),
@@ -519,7 +572,11 @@ async def export_docx(doc_id: str, user: dict = Depends(get_current_user)):
                 row[1].text = str(v)
             document.add_paragraph("")
         for i, (key, label) in enumerate(RPP_SECTION_LABELS):
-            val = (f.get(key) or "").strip()
+            raw = f.get(key)
+            if isinstance(raw, list):
+                val = ", ".join([str(x).strip() for x in raw if str(x).strip()])
+            else:
+                val = (raw or "").strip()
             if not val:
                 continue
             h = document.add_paragraph()
@@ -561,10 +618,39 @@ RPP_FIELDS = [
     "namaKepalaSekolah", "nipKepalaSekolah",
     "identifikasiPesertaDidik", "capaianPembelajaran", "dimensiProfilLulusan",
     "topikPancaCinta", "materiIntegrasiKBC", "pemanfaatanDigital",
-    "lintasDisiplin", "tujuanPembelajaran", "praktikPedagogik", "kemitraan",
+    "lintasDisiplin", "tujuanPembelajaran", "praktikPedagogik", "metodePembelajaran", "kemitraan",
     "kegiatanAwal", "kegiatanInti", "penutup",
     "asesmenAwal", "asesmenProses", "asesmenAkhir", "rubrikPenilaian",
 ]
+
+# Checklist fields (multi-pilih) beserta opsi (jenjang MI, Kurikulum Berbasis Cinta)
+CHECKLIST_OPTIONS = {
+    "dimensiProfilLulusan": [
+        "Keimanan dan Ketakwaan terhadap Tuhan Yang Maha Esa", "Kewargaan",
+        "Penalaran Kritis", "Kreativitas", "Kolaborasi", "Kemandirian", "Kesehatan", "Komunikasi",
+    ],
+    "topikPancaCinta": [
+        "Cinta Allah dan Rasul-Nya", "Cinta Ilmu", "Cinta Lingkungan",
+        "Cinta Diri dan Sesama", "Cinta Tanah Air",
+    ],
+    "lintasDisiplin": [
+        "Al-Qur'an Hadis", "Akidah Akhlak", "Fikih", "SKI", "Bahasa Arab", "PPKn",
+        "Bahasa Indonesia", "Matematika", "IPAS", "Seni Budaya", "PJOK", "Bahasa Inggris", "Muatan Lokal",
+    ],
+    "praktikPedagogik": [
+        "Problem Based Learning", "Project Based Learning", "Discovery Learning",
+        "Inquiry Learning", "Cooperative Learning", "Contextual Teaching and Learning",
+    ],
+    "metodePembelajaran": [
+        "Ceramah", "Diskusi", "Tanya Jawab", "Demonstrasi", "Penugasan", "Eksperimen",
+        "Simulasi", "Bermain Peran", "Karyawisata", "Drill/Latihan", "Kerja Kelompok",
+    ],
+    "kemitraan": [
+        "Orang Tua/Wali", "Komite Madrasah", "Masyarakat", "Tokoh Agama",
+        "Instansi/Lembaga terkait", "Dunia Usaha & Industri", "Alumni",
+    ],
+}
+CHECKLIST_FIELDS = set(CHECKLIST_OPTIONS.keys())
 
 
 def _clean_json(text: str) -> str:
@@ -612,10 +698,15 @@ async def extract_rpp(file: UploadFile = File(...), user: dict = Depends(get_cur
         "Anda membaca dokumen RPP/Modul Ajar yang diunggah lalu mengekstrak isinya menjadi JSON terstruktur."
     )
     keys_desc = ", ".join(RPP_FIELDS)
+    checklist_desc = "\n".join(
+        [f"  - {k}: pilih dari {opts}" for k, opts in CHECKLIST_OPTIONS.items()]
+    )
     prompt = (
         "Baca dokumen terlampir (RPP/Modul Ajar). Ekstrak dan susun kembali isinya menjadi JSON. "
-        f"Gunakan PERSIS kunci berikut (semua string, kosongkan '' jika tidak ada): {keys_desc}. "
-        "Untuk bagian naratif (identifikasi, kegiatan, asesmen, dll) tuliskan isi lengkap yang rapi. "
+        f"Gunakan PERSIS kunci berikut: {keys_desc}. "
+        "Untuk bagian naratif (identifikasi, kegiatan, asesmen, dll) tuliskan isi lengkap yang rapi sebagai STRING (kosongkan '' jika tidak ada). "
+        "Untuk kunci berikut kembalikan berupa ARRAY of string, pilih HANYA dari opsi yang tersedia (boleh lebih dari satu, boleh [] jika tidak ada):\n"
+        f"{checklist_desc}\n"
         "Jika dokumen berupa format/kerangka kosong, isi dengan konten pembelajaran yang relevan dan lengkap "
         "sesuai mata pelajaran/materi yang terdeteksi. "
         "Balas HANYA dengan objek JSON valid tanpa penjelasan, tanpa ```."
@@ -638,7 +729,22 @@ async def extract_rpp(file: UploadFile = File(...), user: dict = Depends(get_cur
         parsed = json.loads(_clean_json(resp))
     except Exception:
         raise HTTPException(status_code=500, detail="AI tidak mengembalikan data yang valid, coba lagi.")
-    fields = {k: str(parsed.get(k, "") or "") for k in RPP_FIELDS}
+    fields = {}
+    for k in RPP_FIELDS:
+        v = parsed.get(k, "")
+        if k in CHECKLIST_FIELDS:
+            allowed = CHECKLIST_OPTIONS[k]
+            if isinstance(v, list):
+                items = [str(x).strip() for x in v if str(x).strip()]
+            elif isinstance(v, str) and v.strip():
+                items = [s.strip() for s in re.split(r"[;,\n]", v) if s.strip()]
+            else:
+                items = []
+            # keep only recognized options (case-insensitive match)
+            low = {o.lower(): o for o in allowed}
+            fields[k] = [low[i.lower()] for i in items if i.lower() in low]
+        else:
+            fields[k] = str(v or "")
     # prefill identitas guru dari profil jika kosong
     fields["namaGuru"] = fields["namaGuru"] or user.get("name", "")
     fields["nip"] = fields["nip"] or user.get("nip", "")
@@ -646,6 +752,7 @@ async def extract_rpp(file: UploadFile = File(...), user: dict = Depends(get_cur
     fields["alamatSekolah"] = fields["alamatSekolah"] or user.get("alamatSekolah", "")
     fields["namaKepalaSekolah"] = fields["namaKepalaSekolah"] or user.get("namaKepalaSekolah", "")
     fields["nipKepalaSekolah"] = fields["nipKepalaSekolah"] or user.get("nipKepalaSekolah", "")
+    fields["logoMadrasah"] = user.get("logoMadrasah", "")
     return {"fields": fields}
 
 
@@ -756,7 +863,7 @@ async def _generate_poster_image(inp: dict) -> Optional[str]:
 # ---------------- App wiring ----------------
 @api_router.get("/")
 async def root():
-    return {"message": "RPP Studio API"}
+    return {"message": "Generator Pembelajaran API"}
 
 
 app.include_router(api_router)
@@ -790,7 +897,7 @@ async def startup():
             "created_by": None,
             "nip": "", "jabatan": "Super Admin",
             "namaSekolah": "", "alamatSekolah": "",
-            "namaKepalaSekolah": "", "nipKepalaSekolah": "",
+            "namaKepalaSekolah": "", "nipKepalaSekolah": "", "logoMadrasah": "",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
     elif not verify_password(SUPERADMIN_PASSWORD, sa["password_hash"]):
@@ -814,6 +921,7 @@ async def startup():
             "alamatSekolah": "Jl. Pendidikan No. 1, Kec. Sukamaju, Kab. Bogor, Jawa Barat",
             "namaKepalaSekolah": "H. Zainur Ridho, S.Pd.I",
             "nipKepalaSekolah": "197505052005011003",
+            "logoMadrasah": "",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
