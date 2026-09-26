@@ -1,0 +1,98 @@
+.App {
+  text-align: left;
+}
+
+/* ===== A4 paper workspace ===== */
+.a4-desk {
+  background: #eef2f0;
+}
+
+.a4-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  background: #ffffff;
+  margin: 0 auto;
+  padding: 18mm 20mm;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.18);
+  color: #0f172a;
+  font-family: "Times New Roman", Georgia, serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.a4-sheet h1, .a4-sheet h2, .a4-sheet h3 {
+  font-family: "Times New Roman", Georgia, serif;
+}
+
+/* Document body (AI-generated html) tables */
+.doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 11pt;
+}
+.doc-content th,
+.doc-content td {
+  border: 1px solid #111;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.doc-content th {
+  background: #e2e8e0;
+  font-weight: 700;
+}
+.doc-content h2 {
+  font-size: 15pt;
+  font-weight: 700;
+  margin: 14px 0 6px;
+}
+.doc-content h3 {
+  font-size: 13pt;
+  font-weight: 700;
+  margin: 12px 0 5px;
+}
+.doc-content p { margin: 6px 0; }
+.doc-content ul, .doc-content ol { margin: 6px 0 6px 22px; }
+.doc-content li { margin: 3px 0; }
+
+[contenteditable="true"]:focus {
+  outline: 2px solid #0f382c;
+  outline-offset: 2px;
+}
+
+/* ===== Print ===== */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .a4-sheet {
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+}
